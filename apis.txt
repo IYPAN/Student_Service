@@ -48,3 +48,9 @@ Content-Type: application/json
   "batch_id": 5
 }
 
+GET /class/notes/123
+Authorization: Bearer <JWT_TOKEN>
+
+
+GET /class/gmeets/123
+Authorization: Bearer <JWT_TOKEN>
