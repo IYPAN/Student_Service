@@ -4,6 +4,7 @@ const cors = require('cors');
 const studentRoutes = require('./routes/studentRoutes');
 const batchRoutes = require('./routes/batchRoutes');
 const classRoutes = require('./routes/classRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
 
 dotenv.config();
 
@@ -14,6 +15,7 @@ app.use(cors());
 app.use('/api/students', studentRoutes);
 app.use('/api/batches', batchRoutes);
 app.use('/api/classes', classRoutes);
+app.use('/api/payments', paymentRoutes);
 
 const PORT = process.env.PORT || 3006;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
