@@ -1,6 +1,6 @@
 const supabase = require('../config/supabaseClient');
 
-// Get Batches by Center
+// ✅ Get Batches by Center
 const getBatchesByCenter = async (req, res) => {
     const { center } = req.student;  // Decoded from JWT
 
@@ -16,7 +16,7 @@ const getBatchesByCenter = async (req, res) => {
     res.json({ batches });
 };
 
-// Enroll Student in Batch
+// ✅ Enroll Student in Batch
 const enrollStudent = async (req, res) => {
     const { student_id } = req.student; // Decoded from JWT
     const { batch_id } = req.body;
@@ -40,4 +40,37 @@ const enrollStudent = async (req, res) => {
     res.json({ message: 'Enrollment successful, pending approval' });
 };
 
-module.exports = { getBatchesByCenter, enrollStudent };
+// ✅ Get All Batches the Student is Enrolled In
+const getEnrolledBatches = async (req, res) => {
+    const { student_id } = req.student;  // Decoded from JWT
+
+    // Fetch student enrollments
+    let { data: enrollments, error } = await supabase
+        .from('enrollment')
+        .select('*')
+        .eq('student', student_id);
+
+    if (error) {
+        return res.status(400).json({ error: error.message });
+    }
+
+    // Get current date
+    const currentDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+
+    // Check for expired enrollments
+    for (let enrollment of enrollments) {
+        if (enrollment.end_date && enrollment.end_date < currentDate) {
+            // Update status to false
+            await supabase
+                .from('enrollment')
+                .update({ status: false })
+                .eq('enrollment_id', enrollment.enrollment_id);
+            
+            enrollment.status = false; // Update local object for response
+        }
+    }
+
+    res.json({ enrollments });
+};
+
+module.exports = { getBatchesByCenter, enrollStudent, getEnrolledBatches };
