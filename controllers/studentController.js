@@ -65,7 +65,6 @@ const loginStudent = async (req, res) => {
     res.json({ message: 'Login successful', token });
 };
 
-
 // Update Student Details
 const updateStudent = async (req, res) => {
     const { name, state, center, email, phone } = req.body;
@@ -99,4 +98,42 @@ const deleteStudent = async (req, res) => {
     res.json({ message: 'Student deleted successfully' });
 };
 
-module.exports = { registerStudent, loginStudent, updateStudent, deleteStudent };
+// Get List of States
+const getStates = async (req, res) => {
+    const { data, error } = await supabase.from('states').select('*');
+
+    if (error) {
+        return res.status(400).json({ error: error.message });
+    }
+
+    res.json(data);
+};
+
+// Get Centers Based on Selected State
+const getCentersByState = async (req, res) => {
+    const { state_id } = req.query; // Get state ID from query params
+
+    if (!state_id) {
+        return res.status(400).json({ error: 'State ID is required' });
+    }
+
+    const { data, error } = await supabase
+        .from('centers')
+        .select('*')
+        .eq('state', state_id); // Fetch centers based on state
+
+    if (error) {
+        return res.status(400).json({ error: error.message });
+    }
+
+    res.json(data);
+};
+
+module.exports = { 
+    registerStudent, 
+    loginStudent, 
+    updateStudent, 
+    deleteStudent, 
+    getStates, 
+    getCentersByState 
+};
