@@ -4,8 +4,8 @@ const authMiddleware = require('../middlewares/authMiddleware');
 
 const router = express.Router();
 
-router.get('/list', authMiddleware, getBatchesByCenter);
-router.post('/enroll', authMiddleware, enrollStudent);
+router.post('/list',  getBatchesByCenter);
+router.post('/enroll',  enrollStudent);
 router.get('/enrolled', authMiddleware, getEnrolledBatches);
 
 module.exports = router;

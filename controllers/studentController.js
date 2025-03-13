@@ -1,21 +1,21 @@
 const supabase = require('../config/supabaseClient');
 const bcrypt = require('bcryptjs');
 const generateToken = require('../utils/generateToken');
+const { get } = require('../routes/batchRoutes');
 
 // Register Student
 const registerStudent = async (req, res) => {
     const { registration_number, name, state, center, email, password, phone } = req.body;
 
-    if (!registration_number || !name || !state || !center || !email || !password || !phone) {
+    if (!name || !state || !center || !email || !password || !phone) {
         return res.status(400).json({ error: 'All fields are required' });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    
+
     const { data, error } = await supabase
         .from('students')
-        .insert([{ 
-            registration_number, 
+        .insert([{  
             name, 
             state, 
             center, 
@@ -23,13 +23,14 @@ const registerStudent = async (req, res) => {
             password: hashedPassword, 
             phone, 
             status: false // Default status is false
-        }]);
+        }])
+        .select(); // Fetch the inserted row details
 
     if (error) {
         return res.status(400).json({ error: error.message });
     }
 
-    res.status(201).json({ message: 'Registration successful' });
+    res.status(201).json({ message: 'Registration successful', student: data[0] });
 };
 
 // Login Student
@@ -64,6 +65,33 @@ const loginStudent = async (req, res) => {
     const token = generateToken(student.student_id, student.center, student.state);
     res.json({ message: 'Login successful', token });
 };
+
+const getStudentDetails = async (req, res) => {
+    const { student_id } = req.body;
+
+    if (!student_id) {
+        return res.status(400).json({ error: 'Student ID is required' });
+    }
+
+    // Fetch student details with full state and center information
+    const { data, error } = await supabase
+        .from('students')
+        .select(`
+            student_id, created_at, registration_number, name, email, password, phone, status,
+            state:states (*),
+            center:centers (*)
+        `)
+        .eq('student_id', student_id)
+        .single();
+
+    if (error) {
+        return res.status(400).json({ error: error.message });
+    }
+
+    res.json({ student: data });
+};
+
+
 
 // Update Student Details
 const updateStudent = async (req, res) => {
@@ -132,6 +160,7 @@ const getCentersByState = async (req, res) => {
 module.exports = { 
     registerStudent, 
     loginStudent, 
+    getStudentDetails,
     updateStudent, 
     deleteStudent, 
     getStates, 

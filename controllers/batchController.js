@@ -2,7 +2,11 @@ const supabase = require('../config/supabaseClient');
 
 // ✅ Get Batches by Center
 const getBatchesByCenter = async (req, res) => {
-    const { center } = req.student;  // Decoded from JWT
+    const { center } = req.body; // Extract center ID from request body
+
+    if (!center) {
+        return res.status(400).json({ error: 'Center ID is required' });
+    }
 
     const { data: batches, error } = await supabase
         .from('batches')
@@ -16,9 +20,10 @@ const getBatchesByCenter = async (req, res) => {
     res.json({ batches });
 };
 
+
 // ✅ Enroll Student in Batch
 const enrollStudent = async (req, res) => {
-    const { student_id } = req.student; // Decoded from JWT
+    const { student_id } = req.body; // Decoded from JWT
     const { batch_id } = req.body;
 
     if (!batch_id) {
@@ -42,12 +47,19 @@ const enrollStudent = async (req, res) => {
 
 // ✅ Get All Batches the Student is Enrolled In
 const getEnrolledBatches = async (req, res) => {
-    const { student_id } = req.student;  // Decoded from JWT
+    const { student_id } = req.student; // Decoded from JWT
 
-    // Fetch student enrollments
+    // Fetch student enrollments with batch details
     let { data: enrollments, error } = await supabase
         .from('enrollment')
-        .select('*')
+        .select(`
+            enrollment_id, created_at, student, status, end_date, 
+            batches (
+                batch_id, batch_name, created_at, language, type, duration,
+                centers (center_id, center_name), 
+                teachers (teacher_id, users (name))
+            )
+        `)
         .eq('student', student_id);
 
     if (error) {
@@ -57,7 +69,7 @@ const getEnrolledBatches = async (req, res) => {
     // Get current date
     const currentDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
 
-    // Check for expired enrollments
+    // Check for expired enrollments and update status if needed
     for (let enrollment of enrollments) {
         if (enrollment.end_date && enrollment.end_date < currentDate) {
             // Update status to false
@@ -65,7 +77,7 @@ const getEnrolledBatches = async (req, res) => {
                 .from('enrollment')
                 .update({ status: false })
                 .eq('enrollment_id', enrollment.enrollment_id);
-            
+
             enrollment.status = false; // Update local object for response
         }
     }
