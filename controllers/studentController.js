@@ -2,6 +2,8 @@ const supabase = require('../config/supabaseClient');
 const bcrypt = require('bcryptjs');
 const generateToken = require('../utils/generateToken');
 const { get } = require('../routes/batchRoutes');
+const crypto = require('crypto');
+const nodemailer = require('nodemailer');
 
 // Register Student
 const registerStudent = async (req, res) => {
@@ -157,6 +159,128 @@ const getCentersByState = async (req, res) => {
     res.json(data);
 };
 
+// Generate Reset Token Helper
+const generateResetToken = () => {
+    // Generate a 6-digit number between 100000 and 999999
+    return Math.floor(100000 + Math.random() * 900000).toString();
+};
+
+// Forgot Password Handler
+const forgotPassword = async (req, res) => {
+    const { registration_number } = req.body;
+
+    if (!registration_number) {
+        return res.status(400).json({ error: 'Registration number is required' });
+    }
+
+    try {
+        const { data: students, error } = await supabase
+            .from('students')
+            .select('student_id, email')
+            .eq('registration_number', registration_number)
+            .limit(1);
+
+        if (error || students.length === 0) {
+            return res.status(404).json({ error: 'Student not found' });
+        }
+
+        const student = students[0];
+        const resetToken = generateResetToken();
+        const resetTokenExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+        // Update student with reset token
+        const { error: updateError } = await supabase
+            .from('students')
+            .update({
+                reset_token: resetToken,
+                reset_token_expires: resetTokenExpires.toISOString()
+            })
+            .eq('student_id', student.student_id);
+
+        if (updateError) throw updateError;
+
+        // Send email with token only (no URL needed)
+        const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            auth: {
+                user: process.env.EMAIL_USER,
+                pass: process.env.EMAIL_PASS
+            }
+        });
+
+        await transporter.sendMail({
+            to: student.email,
+            subject: 'Password Reset Code',
+            html: `
+                <div style="font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 30px;">
+                <div style="max-width: 600px; margin: auto; background-color: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); padding: 30px;">
+                    <h2 style="color: #333;">🔐 Forgot Your Password?</h2>
+                    <p style="font-size: 16px; color: #555;">Don't worry! Use the code below to reset your password. This code is valid for the next <strong>15 minutes</strong>.</p>
+                    <div style="text-align: center; margin: 30px 0;">
+                        <span style="font-size: 32px; font-weight: bold; background-color: #f0f0f0; padding: 10px 20px; border-radius: 8px; display: inline-block; letter-spacing: 3px;">
+                            ${resetToken}
+                        </span>
+                    </div>
+                    <p style="font-size: 14px; color: #888;">If you didn't request this, you can safely ignore this email.</p>
+                    <hr style="margin: 40px 0; border: none; border-top: 1px solid #eee;" />
+                    <p style="font-size: 12px; color: #aaa;">This message was sent by the Student Portal Support Team.</p>
+                </div>
+            </div>
+            `
+        });
+
+        res.json({ 
+            message: 'Password reset code sent to your email',
+            email: student.email.replace(/(.{2})(.*)(?=@)/, (_, start, rest) => start + '*'.repeat(rest.length))
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to process password reset request' });
+    }
+};
+
+// Reset Password Handler
+const resetPassword = async (req, res) => {
+    const { token, newPassword } = req.body;
+
+    if (!token || !newPassword) {
+        return res.status(400).json({ error: 'Reset code and new password are required' });
+    }
+
+    try {
+        const { data: students, error } = await supabase
+            .from('students')
+            .select('student_id, reset_token_expires')
+            .eq('reset_token', token)
+            .limit(1);
+
+        if (error || students.length === 0) {
+            return res.status(400).json({ error: 'Invalid reset code' });
+        }
+
+        const student = students[0];
+
+        if (new Date(student.reset_token_expires) < new Date()) {
+            return res.status(400).json({ error: 'Reset code has expired' });
+        }
+
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        const { error: updateError } = await supabase
+            .from('students')
+            .update({
+                password: hashedPassword,
+                reset_token: null,
+                reset_token_expires: null
+            })
+            .eq('student_id', student.student_id);
+
+        if (updateError) throw updateError;
+
+        res.json({ message: 'Password has been reset successfully' });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to reset password' });
+    }
+};
+
 module.exports = { 
     registerStudent, 
     loginStudent, 
@@ -164,5 +288,7 @@ module.exports = {
     updateStudent, 
     deleteStudent, 
     getStates, 
-    getCentersByState 
+    getCentersByState,
+    forgotPassword,
+    resetPassword
 };

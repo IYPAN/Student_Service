@@ -55,7 +55,7 @@ const getEnrolledBatches = async (req, res) => {
         .select(`
             enrollment_id, created_at, student, status, end_date, 
             batches (
-                batch_id, batch_name, created_at, language, type, duration,
+                batch_id, batch_name, created_at, duration,
                 centers (center_id, center_name), 
                 teachers (teacher_id, users (name))
             )
