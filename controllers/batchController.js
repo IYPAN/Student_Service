@@ -56,6 +56,9 @@ const getEnrolledBatches = async (req, res) => {
             enrollment_id, created_at, student, status, end_date, 
             batches (
                 batch_id, batch_name, created_at, duration,
+                courses (
+                    course_name, type, language, level, mode, program
+                ),
                 centers (center_id, center_name), 
                 teachers (teacher_id, users (name))
             )
